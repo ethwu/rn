@@ -30,7 +30,7 @@ pub fn misalian_kunimunean_time_formatter() -> TimeFormatter<'static> {
 pub fn mk_snap_time_formatter() -> TimeFormatter<'static> {
     TimeFormatter::new(
         (36 * 36 * 36 * 6, 86_400_000),
-        [Segment::Value((6, "span", 1296, 1296).into())],
+        [Segment::Value((6, "span", 1296, 1296, 3).into())],
     )
 }
 
