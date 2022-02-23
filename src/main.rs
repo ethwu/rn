@@ -4,7 +4,7 @@
 use std::{error::Error, time::Duration};
 
 use chrono::{DateTime, Local, NaiveTime, ParseResult, Utc};
-use clap::{App, Arg};
+use clap::Parser;
 
 mod formatter;
 
@@ -78,40 +78,54 @@ fn attempt_parse_time_since_midnight(when: &str) -> ParseResult<NaiveTime> {
     t.unwrap()
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let authors = env!("CARGO_PKG_AUTHORS").replace(':', ", ");
-    let app = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(&*authors)
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(Arg::with_name("when").help("A time to display instead of the current time."))
-        .arg(
-            Arg::with_name("snap")
-                .short("s")
-                .long("snap")
-                .help("Instead of returning the full time, return the current snap."),
-        )
-        .arg(
-            Arg::with_name("local")
-                .short("l")
-                .long("local")
-                .help("Use system time zone instead of UTC."),
-        );
-    let matches = app.get_matches();
+#[derive(Debug, Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// A time to display instead of the current time.
+    when: Option<String>,
+    /// Instead of returning the full time, return the current snap.
+    #[clap(short, long)]
+    snap: bool,
+    /// Use system time zone instead of UTC.
+    #[clap(short, long)]
+    local: bool,
+}
 
-    let millis = if let Some(when) = matches.value_of("when") {
-        attempt_parse_time_since_midnight(when)?
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
+    // let authors = env!("CARGO_PKG_AUTHORS").replace(':', ", ");
+    // let app = App::new(env!("CARGO_PKG_NAME"))
+    //     .version(env!("CARGO_PKG_VERSION"))
+    //     .author(&*authors)
+    //     .about(env!("CARGO_PKG_DESCRIPTION"))
+    //     .arg(Arg::with_name("when").help("A time to display instead of the current time."))
+    //     .arg(
+    //         Arg::with_name("snap")
+    //             .short("s")
+    //             .long("snap")
+    //             .help("Instead of returning the full time, return the current snap."),
+    //     )
+    //     .arg(
+    //         Arg::with_name("local")
+    //             .short("l")
+    //             .long("local")
+    //             .help("Use system time zone instead of UTC."),
+    //     );
+    // let matches = app.get_matches();
+
+    let millis = if let Some(when) = args.when {
+        attempt_parse_time_since_midnight(&when)?
             .signed_duration_since(NaiveTime::from_hms(0, 0, 0))
             .to_std()
             .unwrap()
-    } else if matches.is_present("local") {
+    } else if args.local {
         time_since_local_midnight()
     } else {
         time_since_utc_midnight()
     }
     .as_millis() as u32;
 
-    let formatter = if matches.is_present("snap") {
+    let formatter = if args.snap {
         mk_snap_time_formatter()
     } else {
         misalian_kunimunean_time_formatter()
@@ -124,6 +138,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use assert2::check;
 
     /// Format the given time in senary.
     fn senary_time_a(millis: u128) -> String {
@@ -161,26 +177,26 @@ mod test {
 
     #[test]
     fn senary_representations_sanity_check() {
-        assert_eq!(senary_time_a(0), senary_time_b(0));
-        assert_eq!(senary_time_a(47521888), senary_time_b(47521888));
-        assert_eq!(senary_time_a(130967197), senary_time_b(130967197));
+        check!(senary_time_a(0) == senary_time_b(0));
+        check!(senary_time_a(47521888) == senary_time_b(47521888));
+        check!(senary_time_a(130967197) == senary_time_b(130967197));
 
-        assert_eq!(senary_time_a(0), "0:0:0.0");
-        assert_eq!(senary_time_a(47521888), "31:44:45.4");
-        assert_eq!(senary_time_a(130967197), "130:32:30.1");
+        check!(senary_time_a(0) == "0:0:0.0");
+        check!(senary_time_a(47521888) == "31:44:45.4");
+        check!(senary_time_a(130967197) == "130:32:30.1");
 
         let millis = time_since_utc_midnight().as_millis();
-        assert_eq!(senary_time_a(millis), senary_time_b(millis));
+        check!(senary_time_a(millis) == senary_time_b(millis));
     }
 
     #[test]
     fn senary_formatter() {
         let mkt = misalian_kunimunean_time_formatter();
 
-        assert_eq!(mkt.render(0), "00:00:00.0");
-        assert_eq!(mkt.render(47521888), "31:44:45.4");
-        assert_eq!(mkt.render(81218884), "53:50:14.1");
-        assert_eq!(mkt.render(81246133), "53:50:40.0");
-        assert_eq!(mkt.render(130967197), "130:32:30.1");
+        check!(mkt.render(0) == "00:00:00.0");
+        check!(mkt.render(47521888) == "31:44:45.4");
+        check!(mkt.render(81218884) == "53:50:14.1");
+        check!(mkt.render(81246133) == "53:50:40.0");
+        check!(mkt.render(130967197) == "130:32:30.1");
     }
 }

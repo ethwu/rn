@@ -1,5 +1,7 @@
 use std::fmt;
 
+use num::rational::Ratio;
+
 use super::TimeUnit;
 
 /// A segment to render.
@@ -14,19 +16,19 @@ pub enum Segment<'s> {
 impl Segment<'_> {
     /// Render this segment with the given number of ms since the start of the
     /// day.
-    pub fn render(&self, total: u64) -> String {
+    pub fn render(&self, total: Ratio<u64>) -> String {
         match self {
             Self::Literal(s) => s.to_string(),
-            Self::Value(u) => u.render(total / u.value % u.limit),
+            Self::Value(u) => u.render(total / u.value as u64 % u.limit as u64),
         }
     }
 
     /// Render this segment with the given number of ms since the start of the
     /// day.
-    pub fn render_fmt(&self, f: &mut fmt::Formatter, total: u64) -> fmt::Result {
+    pub fn render_fmt(&self, f: &mut fmt::Formatter, total: Ratio<u64>) -> fmt::Result {
         match self {
             Self::Literal(s) => write!(f, "{}", s),
-            Self::Value(u) => u.render_fmt(f, total / u.value % u.limit),
+            Self::Value(u) => u.render_fmt(f, total / u.value as u64 % u.limit as u64),
         }
     }
 }

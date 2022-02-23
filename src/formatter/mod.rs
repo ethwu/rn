@@ -3,6 +3,7 @@ mod unit;
 
 use std::iter::FromIterator;
 
+use num::rational::Ratio;
 pub use segment::Segment;
 pub use unit::TimeUnit;
 
@@ -10,20 +11,24 @@ pub use unit::TimeUnit;
 #[derive(Debug, Clone)]
 pub struct TimeFormatter<'f> {
     /// The proportion of units to milliseconds, in units/ms. Represented as a
-    /// tuple of the numerator and the denominator.
-    base: (u32, u32),
+    /// tuple of the numerator and the denominator. For example, the Misalian
+    /// Seximal Units use the snap as their basic unit. There are 279,936 snaps
+    /// per every 86,400,000 milliseconds (279,936 snaps per day), so the `base`
+    /// would be `(279_936, 86_400_000)`.
+    base: Ratio<u64>,
     /// The segments to render, in the order that they are displayed.
     segments: Vec<Segment<'f>>,
 }
 
 impl<'f> TimeFormatter<'f> {
     /// Construct a new `TimeFormatter` with the passed specification.
-    pub fn new<I>(base: (u32, u32), spec: I) -> Self
+    pub fn new<R, I>(base: R, spec: I) -> Self
     where
+        R: Into<Ratio<u64>>,
         I: IntoIterator<Item = Segment<'f>>,
     {
         Self {
-            base,
+            base: base.into(),
             segments: Vec::from_iter(spec),
         }
     }
@@ -34,7 +39,7 @@ impl<'f> TimeFormatter<'f> {
         // with three characters each and one segment with one character).
         let mut out = String::with_capacity(self.segments.len() * 3);
         // the amount of time to be formatted, adjusted to be in base units
-        let total = ms as u64 * self.base.0 as u64 / self.base.1 as u64;
+        let total = self.base * ms as u64;
         for segment in &self.segments {
             out += &segment.render(total);
         }
@@ -45,6 +50,8 @@ impl<'f> TimeFormatter<'f> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use assert2::check;
 
     #[test]
     fn construct_hms_ms() {
@@ -62,8 +69,8 @@ mod test {
             ],
         );
 
-        assert_eq!(si_time_units.render(0), "00:00:00.0");
-        assert_eq!(si_time_units.render(7_679_092), "02:07:59.092");
-        assert_eq!(si_time_units.render(49_029_000), "13:37:09.0");
+        check!(si_time_units.render(0) == "00:00:00.0");
+        check!(si_time_units.render(7_679_092) == "02:07:59.092");
+        check!(si_time_units.render(49_029_000) == "13:37:09.0");
     }
 }

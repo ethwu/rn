@@ -6,4 +6,3 @@ install:
 	cargo install --path .
 	upx --best --lzma $(bin)/$(name)
 
-
