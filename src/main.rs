@@ -26,11 +26,19 @@ pub fn misalian_kunimunean_time_formatter() -> TimeFormatter<'static> {
     )
 }
 
+/// Return a time formatter for Misalian–Kunimunean spans.
+pub fn mk_span_time_formatter() -> TimeFormatter<'static> {
+    TimeFormatter::new(
+        (36 * 36 * 36 * 6, 86_400_000),
+        [Segment::Value((6, "span", 1296, 1296, 3).into())],
+    )
+}
+
 /// Return a time formatter for Misalian–Kunimunean snaps.
 pub fn mk_snap_time_formatter() -> TimeFormatter<'static> {
     TimeFormatter::new(
         (36 * 36 * 36 * 6, 86_400_000),
-        [Segment::Value((6, "span", 1296, 1296, 3).into())],
+        [Segment::Value((6, "snap", 1, 36 * 36 * 36 * 6, 7).into())],
     )
 }
 
@@ -54,64 +62,68 @@ fn time_since_utc_midnight() -> Duration {
 /// erroring out.
 fn attempt_parse_time_since_midnight(when: &str) -> ParseResult<NaiveTime> {
     // Formats to try before giving up.
-    const FORMATS: [&str; 6] = [
+    const FORMATS: [&str; 12] = [
         "%T",          // 00:34:60
-        "%R",          // 00:34
+        "%R",          // 00:35
         "%r",          // 12:34:60 AM
-        "%I:%M %p",    // 12:34 AM
+        "%I:%M %p",    // 12:35 AM
         "%Hh %Mm %Ss", // 12h 34m 60s
-        "%Hh %Mm",     // 12h 34m
+        "%Hh %Mm",     // 12h 35m
+        "%Hh",         // 12h
+        "%I%M %p",     // 1235am
+        "%I %p",       // 12am
+        "%H%M",        // 1235
+        "%+",          // 2001-07-08T00:34:60.026490+09:30
+        "%c",          // Sun Jul 8 00:34:60 2001
     ];
 
     let mut t = None;
     for fmt in FORMATS {
-        t = Some(NaiveTime::parse_from_str(when, fmt));
-        if let Some(t) = t {
-            if t.is_ok() {
-                break;
-            }
+        match NaiveTime::parse_from_str(when, fmt) {
+            Ok(t) => return Ok(t),
+            Err(err) => t = Some(err),
         }
     }
 
     // because the length of the loop above is guaranteed to be greater than
     // zero, this is perfectly safe.
-    t.unwrap()
+    Err(t.unwrap())
 }
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// A time to display instead of the current time.
+    /// What time to display. Defaults to the current time.
+    ///
+    /// Several input formats are supported, including ISO-8601 extended date/time
+    /// format and `ctime` format. In these formats, the date is ignored. AM and
+    /// PM may be upper- or lowercased. Examples of supported times include `00:34:60`, `12:34:60 AM`, `4pm`, `6h 45m`, and `8h24m36s`.
     when: Option<String>,
-    /// Instead of returning the full time, return the current snap.
+    /// Display the current snap.
+    ///
+    /// Outputs the number of spans that have elapsed since midnight. Because of
+    /// the way that lapses, lulls, moments, and snaps are specified, this is
+    /// the same as the default extended form, but without delimiters; e.g.,
+    /// extended form `20:34:05.0` is equivalent to basic form `2034050`. Zero
+    /// padded to fill seven digits. Ranges from `0000000` to `5555555`.
     #[clap(short, long)]
-    snap: bool,
+    basic: bool,
     /// Use system time zone instead of UTC.
     #[clap(short, long)]
     local: bool,
+    /// Alias of `--basic`.
+    #[clap(long)]
+    snap: bool,
+    /// Display the current span.
+    ///
+    /// Outputs the number of spans that have elapsed since midnight.
+    /// Zero-padded to fill three digits. Ranges from `000` to `555`.
+    #[clap(short, long)]
+    span: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-    // let authors = env!("CARGO_PKG_AUTHORS").replace(':', ", ");
-    // let app = App::new(env!("CARGO_PKG_NAME"))
-    //     .version(env!("CARGO_PKG_VERSION"))
-    //     .author(&*authors)
-    //     .about(env!("CARGO_PKG_DESCRIPTION"))
-    //     .arg(Arg::with_name("when").help("A time to display instead of the current time."))
-    //     .arg(
-    //         Arg::with_name("snap")
-    //             .short("s")
-    //             .long("snap")
-    //             .help("Instead of returning the full time, return the current snap."),
-    //     )
-    //     .arg(
-    //         Arg::with_name("local")
-    //             .short("l")
-    //             .long("local")
-    //             .help("Use system time zone instead of UTC."),
-    //     );
-    // let matches = app.get_matches();
 
     let millis = if let Some(when) = args.when {
         attempt_parse_time_since_midnight(&when)?
@@ -125,7 +137,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     .as_millis() as u32;
 
-    let formatter = if args.snap {
+    let formatter = if args.span {
+        mk_span_time_formatter()
+    } else if args.basic || args.snap {
         mk_snap_time_formatter()
     } else {
         misalian_kunimunean_time_formatter()
@@ -198,5 +212,16 @@ mod test {
         check!(mkt.render(81218884) == "53:50:14.1");
         check!(mkt.render(81246133) == "53:50:40.0");
         check!(mkt.render(130967197) == "130:32:30.1");
+    }
+
+    #[test]
+    fn basic_formatter() {
+        let basic = mk_snap_time_formatter();
+
+        check!(basic.render(0) == "0000000");
+        check!(basic.render(47521888) == "3144454");
+        check!(basic.render(81218884) == "5350141");
+        check!(basic.render(81246133) == "5350400");
+        check!(basic.render(130967197) == "13032301");
     }
 }

@@ -9,8 +9,8 @@ edition = "2018"
 
 [dependencies]
 chrono = "0.4"
-clap = { version = "3", features = ["derive"] }
-num = "0.4"
+clap = { version = "3", features = ["derive", "wrap_help"] }
+num = "0.3"
 radix_fmt = "1"
 
 [dev-dependencies]
